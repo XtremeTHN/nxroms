@@ -1,0 +1,3 @@
+*.nsp
+out*
+__pycache__
