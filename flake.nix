@@ -28,8 +28,10 @@
     {
       devShells.${system}.default = pkgs.mkShell {
         inherit nativeBuildInputs buildInputs;
-        packages = [
-          pkgs.ruff
+        packages = with pkgs; [
+          ruff
+          hactool
+          ghex
         ];
       };
 

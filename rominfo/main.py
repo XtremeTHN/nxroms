@@ -1,5 +1,6 @@
 from rom import Nsp
-from nca import Nca
+from nca import ContentType
+from colorama import Fore, Style
 
 p = Nsp("undertale.nsp")
 p.populate_attrs()
@@ -10,9 +11,12 @@ print(
     "reserved:", p.reserved
 )
 
-files = p.get_files()
-for index, value in enumerate(files):
-    print(index, value.magic)
+file = p.get_files()
+
+for x in file:
+    if x.content_type == ContentType.CONTROL:
+        print(Style.BRIGHT + Fore.GREEN + "FOUND" + Style.RESET_ALL)
+        print(x.name, x.sdk_addon_version)
 
 # for x in p.get_files():
 #     print(x.name, x.entry.size)

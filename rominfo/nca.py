@@ -1,10 +1,9 @@
 from entry import PartitionEntry
-from readers import File
+from readers import File, MemoryRegion
 from fs import PFSItem
 from enum import Enum
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
+from keys import Keyring
 
 
 
@@ -83,36 +82,30 @@ class Nca(PFSItem):
         super().__init__(file, name, entry, data_pos)
         self.end += entry.offset
 
-        self.magic = self.read_at(0x200, 0x4)
+        self.keyring = Keyring.get_default()
+        
+        header = self.read_at(0, 0xC00)
+        self.decrypted_header = MemoryRegion(self.keyring.aes_xts_decrypt("header_key", header, 0x400, 0, 0x200))
 
-        return
+        self.magic = self.decrypted_header.read_at(0x200, 0x4)
+
         if self.magic.startswith(b"NCA") is False:
             print("warn: invalid nca magic:", self.magic)
             return
-            # raise InvalidNCA(f"invalid nca magic: {self.magic}")
+        
+        self.distribution_type = DistributionType(int.from_bytes(self.decrypted_header.read_at(0x204, 1)))
+        self.content_type = ContentType(int.from_bytes(self.decrypted_header.read_at(0x205, 0x1)))
+        self.key_generation_old = KeyGenOld(int.from_bytes(self.decrypted_header.read_at(0x206, 0x1)))
+        self.key_area_encryption_key_index = KeyAreaEncryptionKeyIndex(int.from_bytes(self.decrypted_header.read_at(0x207, 0x1)))
 
-        self.distribution_type = DistributionType(self.read_at(0x200, 0x04))
-        self.content_type = ContentType(self.read_at(0x205, 0x1))
-        self.key_generation_old = KeyGenOld(self.read_at(0x206, 0x1))
-        self.key_area_encryption_key_index = KeyAreaEncryptionKeyIndex(self.read_at(0x207, 0x1))
+        self.content_size = self.decrypted_header.read_to(0x208, 0x8, "<Q")
+        self.program_id = self.decrypted_header.read_to(0x210, 0x8, "<q")
+        self.content_index = self.decrypted_header.read_to(0x218, 0x4, "<I")
 
-        self.content_size = self.read_to(0x208, 0x8, "<Q")
-        self.program_id = self.read_to(0x210, 0x8, "<q")
-        self.content_index = self.read_to(0x218, 0x4, "<I")
+        sdk_ver_bytes = self.decrypted_header.read_at(0x21C, 0x4)
+        self.sdk_addon_version = f"{sdk_ver_bytes[3]}.{sdk_ver_bytes[2]}.{sdk_ver_bytes[1]}.0"
 
-        sdk_ver_bytes = self.read_at(0x21C, 0x4)
-        self.sdk_addon_version = f"{sdk_ver_bytes[1]}.{sdk_ver_bytes[2]}.{sdk_ver_bytes[3]}"
-
-        self.rights_id = self.read_at(0x230, 0x10).decode()
     # TODO: make a constructor that takes a file and parse it
-
-    def decrypt(self, key: str, data: str):
-        tweak = None
-        cipher = Cipher(algorithms.AES(key), modes.XTS(tweak), backend=default_backend())
-
-        decryptor = cipher.decryptor()
-
-        return decryptor.update(data) + decryptor.finalize()
 
     def __repr__(self):
         return f"<Nca(name={self.name}, offset={self.offset}, end={self.end})>"

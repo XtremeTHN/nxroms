@@ -100,6 +100,28 @@ class File(Readable):
 class OutOfBounds(Exception):
     ...
 
+class MemoryRegion(IReadable):
+    def __init__(self, source: bytearray):
+        self.source = source
+        self.pos = 0
+
+    def tell(self):
+        return self.pos
+
+    def seek(self, pos):
+        self.pos = pos
+
+    def read(self, size):
+        res = self.source[self.pos:size]
+        self.pos += size
+        return bytes(res)
+
+    def read_at(self, offset, size):
+        return bytes(self.source[offset:offset + size])
+    
+    def read_to(self, offset, size, format_str):
+        return struct.unpack(format_str, self.read_at(offset, size))[0]
+
 class Region(Readable):
     def __init__(self, source: IReadable, offset: int, end: int):
         """
