@@ -17,6 +17,9 @@ print(file.content_type, file.content_size)
 
 for x in file.fs_entries:
     print(x, x.start_offset, x.end_offset)
+
+for x in file.fs_headers:
+    print(x)
 # print(file.fs_entries[1].start_offset, file.fs_entries[1].end_offset)
 # file.decrypted_header.dump(f"{file.name}.bin")
 

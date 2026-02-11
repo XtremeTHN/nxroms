@@ -62,6 +62,10 @@ class DistributionType(Enum):
     DOWNLOAD = 0x00
     GAME_CARD = 0x01
 
+NCA_HEADER_SIZE = 0x400
+NCA_ENCRYPTED_SIZE = 0xC00
+NCA_HEADER_SECTION_SIZE = 0x200
+
 class Nca(PFSItem):
     name: str
     entry: PartitionEntry
@@ -81,6 +85,7 @@ class Nca(PFSItem):
     magic: str
 
     fs_entries: list[FsEntry]
+    fs_headers: list[FsHeader]
     decrypted_header: MemoryRegion
 
     key_area: list[str]
@@ -92,7 +97,7 @@ class Nca(PFSItem):
         self.keyring = Keyring.get_default()
         
         header = self.read_at(0, 0xC00)
-        dec = self.keyring.aes_xts_decrypt("header_key", header, 0x400, 0, 0x200)
+        dec = self.keyring.aes_xts_decrypt("header_key", header, NCA_HEADER_SIZE, 0, NCA_HEADER_SECTION_SIZE)
 
         self.magic = dec[0x200:0x204]
 
@@ -103,6 +108,7 @@ class Nca(PFSItem):
                 raise InvalidNCA("invalid magic:", self.magic)
         
         self.populate_fs_entries()
+        self.populate_fs_headers()
 
     def populate_fs_entries(self):
         raw_entries = MemoryRegion(self.decrypted_header.read_at(0x240, 0x40))
@@ -134,12 +140,18 @@ class Nca(PFSItem):
 
         self.fs_entries = entries
     
-    def get_fs_header_for_section(self, section: int):
-        start = 0x400 + (section * 0x200)
-        end = 0x200
+    def populate_fs_headers(self):
+        headers = []
+        for section in range(4):
+            offset = NCA_HEADER_SIZE + (section * NCA_HEADER_SECTION_SIZE)
 
-        data = self.read_at(start, end)
-        return FsHeader(data)
+            headers.append(
+                FsHeader(
+                    self.decrypted_header.read_at(offset, NCA_HEADER_SECTION_SIZE)
+                )
+            )
+
+        self.fs_headers = headers
     
     def get_key_generation(self):
         old = self.key_generation_old.value

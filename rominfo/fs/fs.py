@@ -36,15 +36,22 @@ class MetaDataHashType(Enum):
 
 
 @dataclass
-class CompressionInfo:
-    table_offset: int
-    table_size: int
-
-@dataclass
 class MetaDataHashDataInfo:
     table_offset: int
     table_size: int
-    table_hash: str
+    table_hash: bytes | None
+
+    def __init__(self, data: bytes):
+        r = MemoryRegion(data)
+
+        self.table_offset = r.read_to(0, 0x8, "<Q")
+        self.table_size = r.read_to(0x8, 0x8, "<Q")
+        
+        hash = r.read_at(0x10, 0x20)
+        if not any(hash):
+            self.table_hash = None
+        else:
+            self.table_hash = hash
 
 @dataclass
 class FsHeader:
@@ -55,7 +62,6 @@ class FsHeader:
     encryption_type: EncryptionType
     meta_hash_type: MetaDataHashType
 
-    compression_info: CompressionInfo
     meta_hash_data_info: MetaDataHashDataInfo
 
     def __init__(self, data: bytes):
@@ -66,6 +72,7 @@ class FsHeader:
         self.encryption_type = self.i(EncryptionType, r.read_at(0x4,0x1))
 
         self.meta_hash_type = self.i(MetaDataHashType, r.read_at(0x5, 0x1))
+        self.meta_hash_data_info = MetaDataHashDataInfo(r.read_at(0x1A0, 0x30))
 
     def i(self, en, v):
         return en(int.from_bytes(v))
