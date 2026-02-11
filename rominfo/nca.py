@@ -2,6 +2,7 @@ from fs.entry import PartitionEntry
 from readers import File, MemoryRegion, Region
 from fs.fs import FsEntry, FsHeader
 from fs.pfs0 import PFSItem
+from utils import media_to_bytes
 from enum import Enum
 
 from keys import Keyring
@@ -131,8 +132,9 @@ class Nca(PFSItem):
 
             entries.append (
                 FsEntry(
-                    start,
-                    end
+                    media_to_bytes(start),
+                    media_to_bytes(end),
+                    x
                 )
             )
 
@@ -145,9 +147,18 @@ class Nca(PFSItem):
         for section in range(4):
             offset = NCA_HEADER_SIZE + (section * NCA_HEADER_SECTION_SIZE)
 
+            data = self.decrypted_header.read_at(offset, NCA_HEADER_SECTION_SIZE)
+            
+            # checks if this section is defined
+            # if not it should be a lot of zeros
+            # so i will skip that header
+            if not any(data):
+                continue
+            
             headers.append(
                 FsHeader(
-                    self.decrypted_header.read_at(offset, NCA_HEADER_SECTION_SIZE)
+                    data,
+                    section
                 )
             )
 

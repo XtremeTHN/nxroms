@@ -11,15 +11,28 @@ print(
     "reserved:", p.reserved
 )
 
-file = p.get_file(2)
+files = p.get_files()
 
-print(file.content_type, file.content_size)
+for x in files:
+    if x.content_type == ContentType.CONTROL:
+        print("found control nca:", x)
+        print("parsing filesystems in nca...")
+        for index, header in enumerate(x.fs_headers):
+            print("index:", header.index)
+            print("filesystem:", header.fs_type)
+            print("hash type:", header.hash_type)
+            print("start_offset:", x.fs_entries[index].start_offset)
+            print("end_offset:", x.fs_entries[index].end_offset)
+        
 
-for x in file.fs_entries:
-    print(x, x.start_offset, x.end_offset)
 
-for x in file.fs_headers:
-    print(x)
+# print(file.content_type, file.content_size)
+
+# for x in file.fs_entries:
+#     print(x, x.start_offset, x.end_offset)
+
+# for x in file.fs_headers:
+#     print(x)
 # print(file.fs_entries[1].start_offset, file.fs_entries[1].end_offset)
 # file.decrypted_header.dump(f"{file.name}.bin")
 
