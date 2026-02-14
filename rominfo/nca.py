@@ -229,8 +229,6 @@ class Nca(PFSItem):
                 raise Exception("invalid hash type")
         
         return get_enc_region(fs_offset, entry.end_offset)
-
-        # TODO: decrypt
     
     def open_pfs(self, header: FsHeader):
         if header.fs_type != FsType.PARTITION_FS:
