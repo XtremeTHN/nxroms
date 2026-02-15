@@ -34,7 +34,7 @@ class Keyring:
                     "Put your keys in ~/.switch/prod.keys before using this project"
                 )
 
-            if PROD_KEYS_PATH.isfile() is False:
+            if PROD_KEYS_PATH.is_file() is False:
                 raise InvalidKeys("Invalid keys")
 
             self.key_file = PROD_KEYS_PATH.open()
