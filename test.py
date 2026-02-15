@@ -1,5 +1,5 @@
-from rom import Nsp
-from nca import ContentType, FsType
+from rominfo.rom import Nsp
+from rominfo.nca.nca import ContentType, FsType
 from colorama import Fore, Style
 import sys
 

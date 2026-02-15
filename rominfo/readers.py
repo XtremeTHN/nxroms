@@ -3,7 +3,7 @@ import struct
 from typing import Any
 from io import BufferedReader
 from abc import ABC, abstractmethod
-from keys import Keyring, modes
+from .keys import Keyring, modes
 
 class IReadable(ABC):
     @abstractmethod

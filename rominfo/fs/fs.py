@@ -1,8 +1,8 @@
 from enum import Enum
 from dataclasses import dataclass
-from readers import MemoryRegion
+from ..readers import MemoryRegion
 from abc import ABC, abstractmethod
-from utils import is_zeroes
+from ..utils import is_zeroes
 import struct
 
 @dataclass

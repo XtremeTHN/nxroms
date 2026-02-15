@@ -1,5 +1,5 @@
-from fs.entry import PartitionEntry
-from readers import File, Region, IReadable
+from ..fs.entry import PartitionEntry
+from ..readers import File, Region, IReadable
 
 class FsEntry:
     start_offset: int

@@ -1,6 +1,6 @@
-from fs.pfs0 import PFS0
-from readers import File
-from nca import Nca
+from .fs.pfs0 import PFS0
+from .readers import File
+from .nca.nca import Nca
 import os
 
 class Nsp(PFS0):
