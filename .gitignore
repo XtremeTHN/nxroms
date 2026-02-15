@@ -4,3 +4,4 @@ __pycache__
 .direnv
 *.bin
 .ruff_cache
+.venv

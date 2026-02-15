@@ -23,6 +23,7 @@
 
       buildInputs = with pkgs; [
         python
+        hatch
       ];
     in
     {
