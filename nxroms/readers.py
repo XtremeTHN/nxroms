@@ -3,6 +3,7 @@ from typing import Any
 from io import BufferedReader
 from abc import ABC, abstractmethod
 from .keys import Keyring, modes
+from pathlib import Path
 
 
 class IReadable(ABC):
@@ -155,11 +156,15 @@ class Readable(IReadable):
 class File(Readable):
     obj: BufferedReader
 
-    def __init__(self, file: str | BufferedReader):
+    def __init__(self, file: str | BufferedReader | Path):
         if isinstance(file, str):
             super().__init__(open(file, "rb"))
-        else:
+        elif isinstance(file, Path):
+            super().__init__(file.open("rb"))
+        elif isinstance(file, BufferedReader):
             super().__init__(file)
+        else:
+            raise ValueError(f"invalid object: {type(file)}")
 
     def fileno(self) -> int:
         return self.obj.fileno()
