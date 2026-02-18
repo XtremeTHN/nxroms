@@ -1,5 +1,5 @@
 from ..fs.entry import PartitionEntry
-from ..readers import File, Region, IReadable
+from ..readers import File, Readable, Region, IReadable
 from dataclasses import dataclass
 
 
@@ -71,12 +71,12 @@ class PFSItem(Region):
         super().__init__(file, entry.offset + data_pos, self.entry.size)
 
 
-class PFS0:
+class PFS0(Readable):
     header: PFSHeader
     files: list[str]
 
     def __init__(self, source: IReadable):
-        self.source = source
+        super().__init__(source)
 
         self.header = PFSHeader(source, b"PFS0", 0x18)
 
