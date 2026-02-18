@@ -12,10 +12,9 @@ class Nsp(PFS0):
     def get_file(self, index: int) -> Nca | None:
         if os.path.splitext(self.header.file_entry_table[index].name)[1] != ".nca":
             return None
-        return Nca(
-            self.source,
-            self.header.file_entry_table[index],
-            self.header.raw_data_pos,
+
+        return Nca.from_entry(
+            self, self.header.file_entry_table[index], self.header.raw_data_pos
         )
 
     def get_files(self) -> list[Nca]:
