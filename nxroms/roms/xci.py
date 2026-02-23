@@ -44,28 +44,31 @@ class Xci(Readable):
 
     def __init__(self, source: IReadable | str):
         super().__init__(source)
-
-        self.hfs_header = self.construct_hfs_header(
+        
+        self.hfs_header = self.construct_hfs_header_with_bytes(
             self.peek_at(self.header.hfs_header_offset, self.header.hfs_header_size)
         )
 
-    def construct_hfs_header(self, _bytes: bytes):
+    def construct_hfs_header(self, source: IReadable):
+        return PFSHeader(source, b"HFS0", 0x40)
+
+    def construct_hfs_header_with_bytes(self, _bytes: bytes):
         reader = MemoryRegion(_bytes)
-        return PFSHeader(reader, b"HFS0", 0x40)
+        return self.construct_hfs_header(reader)
 
     def open_partition(self, part: Literal["update", "normal", "secure"]):
         for x in self.hfs_header.entry_table:
             if x.name != part:
                 continue
-
-            return self.construct_hfs_header(
-                self.peek_at(
-                    self.header.hfs_header_offset
-                    + self.hfs_header.raw_data_pos
-                    + x.offset,
-                    x.size,
-                )
+            
+            r = ReadableRegion(
+                self,
+                self.header.hfs_header_offset
+                + self.hfs_header.raw_data_pos
+                + x.offset,
+                x.size
             )
+            return self.construct_hfs_header(r)
 
     # def get_raw_data_region_for_partition(self, part: PFSHeader, file: PFSItem):
     # file.entry.
