@@ -1,7 +1,8 @@
 from enum import Enum
 from dataclasses import dataclass
+from typing import Literal
 
-from nxroms.fs.pfs0 import PFSHeader
+from nxroms.fs.pfs0 import PFSHeader, PFSItem
 from ..utils import media_to_bytes
 from ..binary.repr import BinaryRepr
 from ..binary.types import UInt32, UInt64, Bytes, Enumeration
@@ -44,8 +45,27 @@ class Xci(Readable):
     def __init__(self, source: IReadable | str):
         super().__init__(source)
 
-        reader = MemoryRegion(
+        self.hfs_header = self.construct_hfs_header(
             self.peek_at(self.header.hfs_header_offset, self.header.hfs_header_size)
         )
 
-        self.hfs_header = PFSHeader(reader, b"HFS0", 0x40)
+    def construct_hfs_header(self, _bytes: bytes):
+        reader = MemoryRegion(_bytes)
+        return PFSHeader(reader, b"HFS0", 0x40)
+
+    def open_partition(self, part: Literal["update", "normal", "secure"]):
+        for x in self.hfs_header.entry_table:
+            if x.name != part:
+                continue
+
+            return self.construct_hfs_header(
+                self.peek_at(
+                    self.header.hfs_header_offset
+                    + self.hfs_header.raw_data_pos
+                    + x.offset,
+                    x.size,
+                )
+            )
+
+    # def get_raw_data_region_for_partition(self, part: PFSHeader, file: PFSItem):
+    # file.entry.
