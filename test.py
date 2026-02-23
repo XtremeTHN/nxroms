@@ -57,7 +57,7 @@ def print_nsp(f):
     p = Nsp(f)
 
     info("all pfs0 entries:")
-    for x in p.pfs.header.entry_table:
+    for x in p.header.entry_table:
         info(x)
 
     find_control_nca(p)
@@ -76,6 +76,6 @@ def print_xci(f):
 
 FILE = File(sys.argv[1])
 
-print_xci(FILE)
+print_nsp(FILE)
 
 FILE.close()
