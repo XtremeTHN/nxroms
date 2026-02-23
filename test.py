@@ -2,6 +2,7 @@ from nxroms.nacp import Nacp
 from nxroms.nca.header import ContentType
 from nxroms.nca.nca import Nca
 from nxroms.roms.nsp import Nsp
+from nxroms.roms.xci import Xci
 from nxroms.readers import File, MemoryRegion
 from nxroms.utils import color_ctx, info
 import sys
@@ -62,8 +63,15 @@ def print_nsp(f):
     find_control_nca(p)
 
 
+def print_xci(f):
+    p = Xci(f)
+
+    info(p.header)
+    info(p.hfs_header)
+
+
 FILE = File(sys.argv[1])
 
-print_nsp(FILE)
+print_xci(FILE)
 
 FILE.close()
