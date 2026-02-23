@@ -332,6 +332,8 @@ class MemoryRegion(Readable):
         super().__init__(BytesIO(source))
 
 
+# idk how this works but it works
+# ported from https://github.com/XorTroll/cntx/blob/main/src/util.rs
 class CTRReadable(Readable):
     def __init__(self, source: IReadable, start: int, end: int, key: bytes, ctr: int):
         """

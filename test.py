@@ -43,7 +43,7 @@ def find_control_nca(nsp: Nsp):
         print_nca_info(x)
 
         fs = x.open_romfs(x.header.fs_headers[0])
-        print(fs.header)
+        fs.get_file(fs.files[0]).dump()
 
         return
 

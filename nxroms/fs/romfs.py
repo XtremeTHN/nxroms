@@ -62,5 +62,25 @@ class RomFSDirectory(RomFSEntry):
 class RomFS(Readable):
     def __init__(self, source: IReadable):
         super().__init__(source)
+        self.files: list[RomFSFile] = []
 
         self.header = RomFSHeader(source.peek_at(0, 0x50))
+        self.populate_files()
+
+    def populate_files(self):
+        sibling = 0
+        while True:
+            d = self.source.peek_at(
+                self.header.file_meta_table_offset + sibling,
+                self.header.file_meta_table_size - sibling,
+            )
+            f = RomFSFile(d)
+            self.files.append(f)
+
+            if not f.sibling:
+                break
+
+            sibling = f.sibling
+
+    def get_file(self, file: RomFSFile) -> ReadableRegion:
+        return ReadableRegion(self, self.header.data_offset + file.offset, file.size)
