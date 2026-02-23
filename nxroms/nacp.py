@@ -1,10 +1,15 @@
-from enum import IntEnum
-from dataclasses import dataclass
-from .readers import IReadable, Readable, MemoryRegion
-from .utils import strip
+from nxroms.readers import Readable, MemoryRegion
+from nxroms.fs.pfs0 import IReadable
+from .binary.repr import BinaryRepr
+from .binary.types import Bytes
+from enum import Enum
 
 
-class TitleLanguage(IntEnum):
+def strip(string: bytes) -> str:
+    return string.replace(b"\x00", b"").decode()
+
+
+class TitleLanguage(Enum):
     AMERICAN_ENGLISH = 0
     BRITISH_ENGLISH = 1
     JAPANESE = 2
@@ -23,33 +28,29 @@ class TitleLanguage(IntEnum):
     BRAZILIAN_PORTUGUESE = 15
 
 
-@dataclass
-class Title:
-    language: TitleLanguage
-    name: str
-    publisher: str
+class Title(BinaryRepr, MemoryRegion):
+    name = Bytes(0, 0x200, lambda x: strip(x))
+    publisher = Bytes(0x200, 0x100, lambda x: strip(x))
 
-    def __init__(self, data: bytes, index: int):
-        self.language = TitleLanguage(index)
-        m = MemoryRegion(data)
-
-        self.name = strip(m.read(0x200))
-        self.publisher = strip(m.read(0x100))
+    def __init__(self, source: bytes, index: int):
+        self.language = index
+        super().__init__(source)
 
 
 class Nacp(Readable):
-    titles: list[Title]
-    version: int
+    version = Bytes(0x3060, 0x10, lambda x: strip(x))
 
     def __init__(self, source: IReadable):
         super().__init__(source)
 
-        self.titles = []
+        self.titles: list[Title] = []
+
+        orig = self.tell()
 
         for x in range(16):
             t = Title(self.read(0x300), x)
+
             if t.name == "" or t.publisher == "":
                 continue
             self.titles.append(t)
-
-        self.version = strip(source.read_at(0x3060, 0x10))
+        self.seek(orig)

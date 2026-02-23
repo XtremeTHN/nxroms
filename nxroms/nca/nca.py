@@ -1,31 +1,29 @@
-from ..readers import File, EncryptedCtrRegion, IReadable, Readable, Region
-from ..fs.fs import FsHeader, FsType, InvalidFs, EncryptionType, HashType
-from ..fs.pfs0 import PFS0, PFSEntry
-from ..fs.romfs import RomFS
+from dataclasses import dataclass
 
-from .header import (
-    NcaHeader,
-)
-from ..keys import Keyring
+from nxroms.fs.fs import EncryptionType, FsHeader, FsType, HashType, InvalidFs
+from nxroms.fs.pfs0 import PFS0, PFSEntry, PFSItem, Readable
+from nxroms.fs.romfs import RomFS
+from nxroms.keyring import Keyring
+from nxroms.nca.header import NcaHeader
+from nxroms.readers import CTRReadable, IReadable, ReadableRegion
 
 
+@dataclass
 class Nca(Readable):
-    entry: PFSEntry | None
-
     header: NcaHeader
+    entry: PFSEntry | None = None
 
     def __init__(self, source: IReadable):
         super().__init__(source)
-        self.keyring = Keyring.get_default()
 
-        header = source.read_at(0, 0xC00)
+        self.keyring = Keyring.get_default()
+        header = source.peek_at(0, 0xC00)
         self.header = NcaHeader(header)
 
     @classmethod
-    def from_entry(self, source: IReadable, entry: PFSEntry, data_pos: int):
-        r = Region(source, entry.offset + data_pos, entry.size + entry.offset)
-        self.entry = entry
-        return Nca(r)
+    def from_item(self, item: PFSItem):
+        self.entry = item.entry
+        return Nca(item)
 
     def get_entry_for_header(self, header: FsHeader):
         return [x for x in self.header.fs_entries if x.index == header.index][0]
@@ -33,7 +31,7 @@ class Nca(Readable):
     def open_fs(self, header: FsHeader):
         def get_enc_region(offset, end_offset):
             key = bytes.fromhex(self.header.key_area.aes_ctr_key)
-            return EncryptedCtrRegion(self, offset, end_offset, key, header.ctr)
+            return CTRReadable(self, offset, end_offset, key, header.ctr)
 
         entry = self.get_entry_for_header(header)
 
@@ -70,6 +68,3 @@ class Nca(Readable):
             raise InvalidFs(FsType.ROM_FS, header.fs_type)
 
         return RomFS(self.open_fs(header))
-
-    def __repr__(self):
-        return f"<Nca(name={self.name}, offset={self.offset}, end={self.end})>"

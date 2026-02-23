@@ -1,35 +1,13 @@
-import pathlib
-from nxroms.fs.pfs0 import File
 from nxroms.nacp import Nacp
-from nxroms.nca.nca import Nca
-from nxroms.rom.nsp import Nsp
-from nxroms.rom.xci import Xci
-from nxroms.fs.fs import FsType
 from nxroms.nca.header import ContentType
-from colorama import Fore, Style
+from nxroms.nca.nca import Nca
+from nxroms.roms.nsp import Nsp
+from nxroms.readers import File, MemoryRegion
+from nxroms.utils import color_ctx, info
 import sys
 
 
-def color(string, color):
-    return color + str(string) + Fore.RESET
-
-
-def colored(*msg, color=Fore.GREEN, level=""):
-    print(color + Style.BRIGHT + str(level) + Style.RESET_ALL, *msg)
-
-
-def color_ctx(prefix):
-    def wrapper(*msg, color=Fore.GREEN, level=""):
-        colored(*msg, color=color, level=str(prefix) + str(level))
-
-    return wrapper
-
-
-def info(*msg):
-    colored(*msg, level="INFO")
-
-
-def print_nca_filesystems(nca):
+def print_nca_filesystems(nca: Nca):
     c = color_ctx("Header ")
     for index, header in enumerate(nca.header.fs_headers):
         c("filesystem:", header.fs_type, level=header.index)
@@ -43,7 +21,7 @@ def print_nca_filesystems(nca):
         print()
 
 
-def print_nca_info(nca):
+def print_nca_info(nca: Nca):
     if hasattr(nca, "entry"):
         info("nca:", nca.entry.name)
 
@@ -56,92 +34,36 @@ def print_nca_info(nca):
     print_nca_filesystems(nca)
 
 
-def print_all_ncas(rom):
-    files = rom.get_files()
-
-    print("-" * 50)
-    for x in files:
-        print_nca_info(x)
-        print("-" * 50)
-
-
-def control_nca(rom: Nsp):
-    files = rom.get_files()
-
-    for x in files:
+def find_control_nca(nsp: Nsp):
+    for x in nsp.get_ncas():
         if x.header.content_type != ContentType.CONTROL:
             continue
 
+        print()
         info("found control nca")
         print_nca_info(x)
-        x.dump(x.entry.name)
 
-        info("opening romfs")
-        romfs = x.open_romfs(x.header.fs_headers[0])
+        fs = x.open_romfs(x.header.fs_headers[0])
 
-        info("romfs header:", romfs.header)
+        n = Nacp(fs.get_file(fs.files[0]))
+        info("rom name:", n.titles[0].name)
+        info("rom version:", n.version)
 
-        for f in romfs.files:
-            c = color_ctx(f.name + ":")
-            c(f"size {f.size} offset {f.offset}")
-
-        print()
-
-        for f in romfs.files:
-            if f.name != "control.nacp":
-                continue
-            o = romfs.get_file(f)
-            n = Nacp(o)
-
-            t = n.titles[0]
-            info("rom name:", t.name)
-            info("rom publisher:", t.publisher)
-            info("rom version:", n.version)
-
-        break
-    else:
-        info("control nca not found")
+        return
 
 
-def parse_nsp(f):
+def print_nsp(f):
     p = Nsp(f)
 
-    control_nca(p)
+    info("all pfs0 entries:")
+    for x in p.pfs.header.entry_table:
+        info(x)
+
+    find_control_nca(p)
 
 
-def parse_xci(f):
-    x = Xci(f)
+FILE = File(sys.argv[1])
 
-    info(x.header)
+print_nsp(FILE)
 
-
-def parse_nca(f: pathlib.Path):
-    file = File(f)
-    x = Nca(file)
-
-    print_nca_info(x)
-
-
-def extract_bytes(f, offset, size):
-    x = File(f)
-    o = open("out.bin", "wb")
-    o.write(x.read_at(offset, size))
-
-
-if len(sys.argv) == 1:
-    colored("pass a file to view its information", color=Fore.YELLOW, level="WARN")
-    sys.exit(1)
-
-FILE = pathlib.Path(sys.argv[1])
-
-info("parsing", color(FILE, Fore.CYAN))
-match FILE.suffix:
-    case ".nsp":
-        parse_nsp(FILE)
-    case ".xci":
-        parse_xci(FILE)
-    case ".nca":
-        parse_nca(FILE)
-    case _:
-        colored("invalid file", color=Fore.RED, level="ERROR")
-        sys.exit(1)
+FILE.close()

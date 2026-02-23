@@ -8,7 +8,7 @@ authors = [
 
 description = "python project to parse nx roms"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -26,3 +26,6 @@ Homepage = "https://github.com/XtremeTHN/nxroms"
 [build-system]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py310"

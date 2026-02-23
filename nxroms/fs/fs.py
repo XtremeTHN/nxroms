@@ -1,16 +1,20 @@
-from enum import Enum
-from dataclasses import dataclass
+from nxroms.utils import media_to_bytes
+
+from ..binary.types import (
+    UInt32,
+    UInt64,
+    Bytes,
+    Enumeration,
+)
+from ..binary.repr import BinaryRepr
 from ..readers import MemoryRegion
-from ..utils import is_zeroes
-import struct
+from enum import Enum
 
 
-@dataclass
-class FsEntry:
-    start_offset: int
-    end_offset: int
+class FsEntry(BinaryRepr, MemoryRegion):
+    start_offset = UInt32(0x0, lambda x: media_to_bytes(x))
+    end_offset = UInt32(0x4, lambda x: media_to_bytes(x))
     index: int
-    reserved: None = None
 
 
 class FsType(Enum):
@@ -39,154 +43,91 @@ class MetaDataHashType(Enum):
     HIERARCHICAL_INTEGRITY = 1
 
 
-@dataclass
-class MetaDataHashDataInfo:
-    table_offset: int
-    table_size: int
-    table_hash: bytes | None
-
-    def __init__(self, data: bytes):
-        r = MemoryRegion(data)
-
-        self.table_offset = r.read_to(0, 0x8, "<Q")
-        self.table_size = r.read_to(0x8, 0x8, "<Q")
-
-        hash = r.read_at(0x10, 0x20)
-        if not any(hash):
-            self.table_hash = None
-        else:
-            self.table_hash = hash
+class MetaDataHashDataInfo(BinaryRepr, MemoryRegion):
+    table_offset = UInt64(0)
+    table_size = UInt64(0x8)
+    table_hash = Bytes(0x10, 0x20)
 
 
-@dataclass
-class LayerRegion:
-    offset: int
-    size: int
+class LayerRegion(BinaryRepr, MemoryRegion):
+    offset = UInt64(0)
+    size = UInt64(0x8)
 
 
-@dataclass
-class HierarchicalSha256Data:
-    master_hash: bytes
-    block_size: int
-    layer_count = 2
-    layer_regions: list[LayerRegion]
+class HierarchicalSha256Data(BinaryRepr, MemoryRegion):
+    master_hash = Bytes(0, 0x20)
+    block_size = UInt32(0x20)
+    layer_count = UInt32(0x24)
 
-    def __init__(self, data: bytes):
-        r = MemoryRegion(data)
+    def __init__(self, source: bytes):
+        super().__init__(source)
 
-        self.master_hash = r.read_at(0, 0x20)
-        self.block_size = r.read_to(0x20, 0x4, "<I")
-        self.layer_count = r.read_to(0x24, 0x4, "<I")
         self.layer_regions = []
 
-        r.seek(0x28)
+        self.seek(0x28)
         for x in range(self.layer_count):
-            offset = struct.unpack("<Q", r.read(0x8))[0]
-            size = struct.unpack("<Q", r.read(0x8))[0]
-            layer = LayerRegion(offset, size)
-            self.layer_regions.append(layer)
+            data = self.read(0x10)
+            self.layer_regions.append(LayerRegion(data))
 
 
-@dataclass
-class HierarchicalIntegrityLevelInfo:
-    offset: int
-    size: int
-    block_size_log2: int
-    reserved = None
+class HierarchicalIntegrityLevel(BinaryRepr, MemoryRegion):
+    logical_offset = UInt64(0)
+    hash_data_size = UInt64(0x8)
+    block_size = UInt32(0x10)
 
 
-# TODO: if the romfs is invalid, check this class
-# the levels data are rare
-@dataclass
-class HierarchicalIntegrityLevel:
-    logical_offset: int
-    hash_data_size: int
-    block_size: int
-    reserved = None
+class InfoLevelHash(BinaryRepr, MemoryRegion):
+    max_layer = UInt32(0)
+    salt = Bytes(0x94, 0x20)
 
-    def __init__(self, data: bytes):
-        r = MemoryRegion(data)
+    def __init__(self, source: bytes):
+        super().__init__(source)
 
-        self.logical_offset = r.read_to(0x0, 0x8, "<Q")
-        self.hash_data_size = r.read_to(0x8, 0x8, "<Q")
-        self.block_size = r.read_to(0x10, 0x4, "<I")
-
-
-@dataclass
-class InfoLevelHash:
-    max_layers: int
-    levels: list[HierarchicalIntegrityLevel]
-    salt: bytes
-
-    def __init__(self, data: bytes):
-        r = MemoryRegion(data)
-        self.max_layers = r.read_to(0x0, 0x4, "<I")
         self.levels = []
+        self.seek(0x4)
 
-        r.seek(0x4)
         for x in range(6):
-            data = r.read(0x18)
+            data = self.read(0x18)
             self.levels.append(HierarchicalIntegrityLevel(data))
 
-        salt = r.read_at(0x94, 0x20)
-        if is_zeroes(salt):
-            self.salt = None
-        else:
-            self.salt = salt
+
+class HierarchicalIntegrity(BinaryRepr, MemoryRegion):
+    magic = Bytes(0, 0x4)
+    version = UInt32(0x4)
+    master_hash_size = UInt32(0x8)
+    info_level_hash: InfoLevelHash = Bytes(0xC, 0xB4, InfoLevelHash)
+
+    def __init__(self, source: bytes):
+        super().__init__(source)
+
+        if self.magic != b"IVFC":
+            raise ValueError(f"Invalid magic: {self.magic}")
 
 
-@dataclass
-class HierarchicalIntegrity:
-    magic = b"IVFC"
-    version: int
-    master_hash_size: int
-    info_level_hash: InfoLevelHash
-
-    def __init__(self, data: bytes):
-        r = MemoryRegion(data)
-
-        if r.read_at(0x0, 0x4) != b"IVFC":
-            raise ValueError("Invalid magic")
-
-        self.version = r.read_to(0x4, 0x4, "<I")
-        self.master_hash_size = r.read_to(0x8, 0x4, "<I")
-        self.info_level_hash = InfoLevelHash(r.read_at(0xC, 0xB4))
-
-
-@dataclass
-class FsHeader:
+class FsHeader(BinaryRepr, MemoryRegion):
     VERSION = 2
 
-    fs_type: FsType
-    hash_type: HashType
-    hash_data: HierarchicalIntegrity | HierarchicalSha256Data
-    encryption_type: EncryptionType
+    fs_type: FsType = Enumeration(0x2, FsType)
+    hash_type: HashType = Enumeration(0x3, HashType)
 
-    meta_hash_type: MetaDataHashType
-    meta_hash_data_info: MetaDataHashDataInfo
-    ctr: bytes
-    index: int
+    encryption_type: EncryptionType = Enumeration(0x4, EncryptionType)
 
-    def __init__(self, data: bytes, index: int):
-        r = MemoryRegion(data)
+    meta_hash_type: MetaDataHashType = Enumeration(0x5, MetaDataHashType)
+    meta_hash_data_info: MetaDataHashDataInfo = Bytes(0x1A0, 0x30, MetaDataHashDataInfo)
+
+    ctr = UInt64(0x140)
+
+    def __init__(self, source: bytes, index: int):
+        super().__init__(source)
+
         self.index = index
 
-        self.fs_type = self.i(FsType, r.read_at(0x2, 0x1))
-        self.hash_type = self.i(HashType, r.read_at(0x3, 0x1))
-        self.encryption_type = self.i(EncryptionType, r.read_at(0x4, 0x1))
+        hash_data = self.read_at(0x8, 0xF8)
 
-        self.meta_hash_type = self.i(MetaDataHashType, r.read_at(0x5, 0x1))
-        self.meta_hash_data_info = MetaDataHashDataInfo(r.read_at(0x1A0, 0x30))
-        self.ctr = r.read_to(0x140, 0x8, "<Q")
-
-        hash_data = r.read_at(0x8, 0xF8)
         if self.hash_type is HashType.HIERARCHICAL_INTEGRITY_HASH:
             self.hash_data = HierarchicalIntegrity(hash_data)
         else:
             self.hash_data = HierarchicalSha256Data(hash_data)
-
-    def i(self, en, v):
-        return en(int.from_bytes(v))
 
 
 class InvalidFs(Exception):

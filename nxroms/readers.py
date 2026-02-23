@@ -1,151 +1,303 @@
-import struct
-from typing import Any
-from io import BufferedReader
+from io import BufferedReader, BytesIO
 from abc import ABC, abstractmethod
-from .keys import Keyring, modes
 from pathlib import Path
+from typing import Any
+import struct
+
+from nxroms.crypto import Crypto, modes
 
 
 class IReadable(ABC):
+    @abstractmethod
+    def read(self, size) -> bytes | None:
+        """
+        Reads from current cursor position to size
+
+        Args:
+            size (int): The count of bytes to read
+
+        Returns:
+            The data or None
+        """
+        ...
+
+    @abstractmethod
+    def read_unpack(self, size, format_str) -> Any | None:
+        """
+        Reads from current cursor position to size, and then converts to format_str
+
+        Args:
+            size (int): The count of bytes to read
+            format_str (str): The struct.unpack format string
+
+        Returns:
+            The unpacked data or None
+        """
+        ...
+
+    @abstractmethod
+    def read_at(self, offset, size) -> bytes | None:
+        """
+        Reads at `offset` to `size`. This method moves the cursor
+
+        Args:
+            offset (int): The offset
+            size (int): The count of bytes to read
+        Returns:
+            The data in bytes or None
+        """
+        ...
+
+    @abstractmethod
+    def read_unpack_at(self, offset, size, format_str) -> Any | None:
+        """
+        Reads at `offset` to `size` and then converts it to `format_str`. This method moves the cursor
+
+        Args:
+            offset (int): The offset
+            size (int): The count of bytes to read
+            format_str (str): The struct.unpack format string
+        Returns:
+            The unpacked data or None
+        """
+        ...
+
+    @abstractmethod
+    def peek(self, size) -> bytes | None:
+        """
+        Reads from current cursor position to `size`. This method does not move the cursor
+
+        Args:
+            size (int): The count of bytes to read
+        Returns:
+            The data in bytes or None
+        """
+        ...
+
+    @abstractmethod
+    def peek_unpack(self, size, format_str) -> Any | None:
+        """
+        Reads from current cursor position to size, and then converts to format_str. This method does not move the cursor
+
+        Args:
+            size (int): The count of bytes to read
+            format_str (str): The struct.unpack format string
+
+        Returns:
+            The unpacked data or None
+        """
+        ...
+
+    @abstractmethod
+    def peek_at(self, offset, size) -> bytes | None:
+        """
+        Reads at `offset` to `size`. This method does not move the cursor
+
+        Args:
+            offset (int): The offset
+            size (int): The count of bytes to read
+        Returns:
+            The data in bytes or None
+        """
+        ...
+
+    @abstractmethod
+    def peek_unpack_at(self, offset, size, format_str) -> Any | None:
+        """
+        Reads at `offset` to `size` and then converts it to `format_str`. This method does not move the cursor
+
+        Args:
+            offset (int): The offset
+            size (int): The count of bytes to read
+            format_str (str): The struct.unpack format string
+        Returns:
+            The unpacked data or None
+        """
+        ...
+
     @abstractmethod
     def tell(self) -> int:
         """
         Gets the cursor position
 
         Returns:
-            int: The cursor position
+            The current cursor position
         """
         ...
 
     @abstractmethod
-    def seek(self, offset: int) -> None:
+    def seek(self, offset):
         """
         Moves the cursor to offset
 
         Args:
-            offset (int): The cursor position
+            offset (int): The offset
         """
         ...
 
     @abstractmethod
-    def skip(self, bytes: int) -> Any:
+    def skip(self):
         """
-        Skips a count of `bytes` from the current position
+        Skips `count` of bytes
 
         Args:
-            bytes (int): Count of bytes to skip
-        """
-        ...
-
-    @abstractmethod
-    def read(self, size: int) -> bytes | None:
-        """
-        Reads up to `size` bytes from the source.
-
-        Args:
-            size (int): The maximum number of bytes to read.
-
-        Returns:
-            bytes | None: The bytes read from the source, or None if no more data is available.
-        """
-        ...
-
-    @abstractmethod
-    def read_at(self, offset: int, size: int) -> bytes:
-        """
-        Reads a sequence of bytes from the given offset.
-
-        Args:
-            offset (int): The position in the data source to start reading from.
-            size (int): The number of bytes to read.
-
-        Returns:
-            bytes: The bytes read from the specified offset and size.
-        """
-        ...
-
-    @abstractmethod
-    def read_unpack(self, size: int, format_string: str) -> Any:
-        """
-        Reads up to `size` bytes from the source and unpacks it to `format_string`
-
-        Args:
-            size (int): The maximum number of bytes to read.
-            format_string (str): The struct.unpack format string
-
-        Returns:
-            Any | None: The unpacked data. None if theres no more data to read.
-        """
-        ...
-
-    # TODO: change name to read_unpack_at
-    @abstractmethod
-    def read_to(self, offset: int, size: int, format_string: str) -> Any:
-        """
-        Reads a sequence of bytes from the given offset and converts it to format_string
-
-        Args:
-            offset (int): The position in the data source to start reading from.
-            size (int): The number of bytes to read.
-            format_string (str): The struct.unpack format string
-        """
-        ...
-
-    @abstractmethod
-    def dump(self, path):
-        """
-        Writes all the data of this `IReadable` into `path`
-
-        Args:
-            path (str): The destination path
+            count (int): The count of bytes
         """
         ...
 
 
 class Readable(IReadable):
-    def __init__(self, obj: IReadable):
-        """
-        A wrapper of an `IReadable`
+    def __init__(self, source: IReadable):
+        self.source = source
 
-        Args:
-            obj (IReadable): An object implementing the mayority of methods of IReadable
-        """
-        self.obj = obj
+    def __unpack(self, data: bytes, format_str: str):
+        return struct.unpack(format_str, data)[0]
 
-    def seek(self, offset: int):
-        self.obj.seek(offset)
+    def __read_unpack(self, method, size, format_str):
+        data = method(size)
+        if not data:
+            return
+        if len(data) < size:
+            raise EOFError(f"expected {size} bytes, got {len(data)}")
 
-    def skip(self, bytes: int):
-        self.seek(self.obj.tell() + bytes)
+        return self.__unpack(data, format_str)
 
-    def tell(self) -> int:
-        return self.obj.tell()
+    def __read_at(self, method, offset, size):
+        self.seek(offset)
+        return method(size)
 
-    def read(self, size: int):
-        return self.obj.read(size)
-
-    def read_unpack(self, size: int, format_str: int):
-        d = self.read(size)
-        if not d:
+    def __read_unpack_at(self, method, offset, size, format_str):
+        data = method(offset, size)
+        if not data:
             return
 
-        return struct.unpack(format_str, d)[0]
+        return self.__unpack(data, format_str)
 
-    # TODO: change this to read_unpack
-    def _read_to(self, size: int, format_str: str):
-        r = self.read(size)
-        return struct.unpack(format_str, r)[0]
+    def read(self, size) -> bytes | None:
+        return self.source.read(size)
 
-    def read_at(self, offset: int, size: int):
-        return self.obj.read_at(offset, size)
+    def read_unpack(self, size, format_str) -> Any | None:
+        return self.__read_unpack(self.read, size, format_str)
 
-    # TODO: change name to read_unpack_at
-    def read_to(self, offset: int, size: int, format_string: str):
-        return struct.unpack(format_string, self.read_at(offset, size))[0]
+    def read_at(self, offset, size) -> bytes | None:
+        return self.__read_at(self.read, offset, size)
 
-    def dump(self, path):
-        self.seek(0)
-        with open(path, "wb") as f:
+    def read_unpack_at(self, offset, size, format_str) -> Any | None:
+        return self.__read_unpack_at(self.read_at, offset, size, format_str)
+
+    def peek(self, size) -> bytes | None:
+        orig = self.tell()
+        data = self.read(size)
+        self.seek(orig)
+        return data
+
+    def peek_unpack(self, size, format_str) -> Any | None:
+        return self.__read_unpack(self.peek, size, format_str)
+
+    def peek_at(self, offset, size) -> bytes | None:
+        return self.__read_at(self.peek, offset, size)
+
+    def peek_unpack_at(self, offset, size, format_str) -> Any | None:
+        return self.__read_unpack_at(self.peek_at, offset, size, format_str)
+
+    def tell(self) -> int:
+        return self.source.tell()
+
+    def seek(self, offset):
+        self.source.seek(offset)
+
+    def skip(self, count: int):
+        self.seek(self.tell() + count)
+
+    def dump(self, name: str = "out.bin"):
+        with open(name, "wb") as f:
+            while True:
+                chunk = self.read(1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+
+
+class ReadableRegion(IReadable):
+    def __init__(self, source: IReadable, start: int, size: int):
+        self._source = source
+        self._start = start
+        self._size = size
+        self._pos = 0  # local cursor
+
+    def _absolute(self, offset: int) -> int:
+        return self._start + offset
+
+    def read(self, size):
+        if self._pos >= self._size:
+            return None
+
+        size = min(size, self._size - self._pos)
+
+        data = self._source.peek_at(self._absolute(self._pos), size)
+        self._pos += len(data)
+        return data
+
+    def read_at(self, offset, size):
+        if offset >= self._size:
+            return None
+
+        size = min(size, self._size - offset)
+        self._pos = offset
+        return self._source.peek_at(self._absolute(offset), size)
+
+    def peek(self, size):
+        if self._pos >= self._size:
+            return None
+
+        size = min(size, self._size - self._pos)
+        return self._source.peek_at(self._absolute(self._pos), size)
+
+    def peek_at(self, offset, size):
+        if offset >= self._size:
+            return None
+
+        size = min(size, self._size - offset)
+        return self._source.peek_at(self._absolute(offset), size)
+
+    def tell(self):
+        return self._pos
+
+    def seek(self, offset):
+        if not (0 <= offset <= self._size):
+            raise ValueError("Offset out of bounds")
+        self._pos = offset
+
+    def skip(self, count):
+        self.seek(self._pos + count)
+
+    # Optional: reuse your Readable helpers for unpack
+    def read_unpack(self, size, format_str):
+        data = self.read(size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_str, data)[0]
+
+    def peek_unpack(self, size, format_str):
+        data = self.peek(size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_str, data)[0]
+
+    def read_unpack_at(self, offset, size, format_str):
+        data = self.read_at(offset, size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_str, data)[0]
+
+    def peek_unpack_at(self, offset, size, format_str):
+        data = self.peek_at(offset, size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_str, data)[0]
+
+    def dump(self, name: str = "out.bin"):
+        with open(name, "wb") as f:
             while True:
                 chunk = self.read(1024)
                 if not chunk:
@@ -154,155 +306,51 @@ class Readable(IReadable):
 
 
 class File(Readable):
-    obj: BufferedReader
+    source: BufferedReader
 
-    def __init__(self, file: str | BufferedReader | Path):
-        if isinstance(file, str):
-            super().__init__(open(file, "rb"))
-        elif isinstance(file, Path):
-            super().__init__(file.open("rb"))
-        elif isinstance(file, BufferedReader):
-            super().__init__(file)
+    def __init__(self, obj: BufferedReader | Path | str):
+        if isinstance(obj, BufferedReader):
+            super().__init__(obj)
+        elif isinstance(obj, Path):
+            super().__init__(obj.open("rb"))
+        elif isinstance(obj, str):
+            super().__init__(open(obj, "rb"))
         else:
-            raise ValueError(f"invalid object: {type(file)}")
-
-    def fileno(self) -> int:
-        return self.obj.fileno()
-
-    def read_at(self, offset: int, size: int):
-        self.seek(offset)
-        return self.obj.read(size)
+            raise ValueError(
+                f"Invalid object type: expected a BufferedReader, Path, or a string, got {type(obj)}"
+            )
 
     def close(self):
-        self.obj.close()
+        self.source.close()
+
+    def fileno(self):
+        return self.source.fileno()
 
 
-class OutOfBounds(Exception): ...
+class MemoryRegion(Readable):
+    def __init__(self, source: bytes):
+        super().__init__(BytesIO(source))
 
 
-class MemoryRegion(IReadable):
-    def __init__(self, source: bytearray):
+# idk how this works but it works
+# ported from https://github.com/XorTroll/cntx/blob/main/src/util.rs
+class CTRReadable(Readable):
+    def __init__(self, source: IReadable, start: int, end: int, key: bytes, ctr: int):
         """
-        A readable bytes buffer
-        """
-        self.source = source
-        self.pos = 0
-
-    def tell(self):
-        return self.pos
-
-    def seek(self, pos):
-        self.pos = pos
-
-    def skip(self, bytes: int):
-        self.seek(self.obj.tell() + bytes)
-
-    def read(self, size):
-        res = self.source[self.pos : self.pos + size]
-        self.pos += size
-
-        return bytes(res)
-
-    # TODO: implement
-    def read_unpack(self, size, format_string):
-        return self._read_to(size, format_string)
-
-    # TODO: remove
-    def _read_to(self, size: int, format_str: str):
-        r = self.read(size)
-        return struct.unpack(format_str, r)[0]
-
-    def read_at(self, offset, size):
-        return self.source[offset : offset + size]
-
-    # TODO: change name to read_unpack_at
-    def read_to(self, offset, size, format_str):
-        return struct.unpack(format_str, self.read_at(offset, size))[0]
-
-    def __len__(self):
-        return len(self.source)
-
-    def dump(self, path):
-        self.seek(0)
-        with open(path, "wb") as f:
-            f.write(self.source)
-
-
-class Region(Readable):
-    def __init__(self, source: IReadable, offset: int, end: int):
-        """
-        A region of a source
+        A bounded CTR-encrypted readable region.
 
         Args:
-            source (IReadable): An object that implements IReadable
-            offset (int): The start of the region
-            end (int): The end of the region
-        """
-
-        super().__init__(source)
-
-        self.offset = offset
-        self.end = end
-
-    def calc_offset(self, offset: int):
-        """
-        Calculate the total offset by adding the provided offset to the instance's base offset.
-
-        Args:
-            offset (int): The offset value to add to the base offset
-
-        Returns:
-            int: The calculated offset
-
-        Raises:
-            OutOfBounds: If the offset is larger than self.end
-        """
-
-        total_offset = self.offset + offset
-        if total_offset > self.end:
-            return total_offset
-            raise OutOfBounds(
-                f"total_offset: {total_offset} end: {self.end} self.offset: {self.offset}"
-            )
-        return total_offset
-
-    def seek(self, offset):
-        super().seek(self.calc_offset(offset))
-
-    def read(self, size: int):
-        current_pos = self.obj.tell() - self.offset
-        remaining_bytes = self.end - current_pos
-
-        if remaining_bytes <= 0:
-            return None
-
-        read_size = min(size, remaining_bytes)
-        return super().read(read_size)
-
-    def read_at(self, offset, size):
-        return super().read_at(self.calc_offset(offset), size)
-
-    def read_to(self, offset, size, format_string):
-        return super().read_to(self.calc_offset(offset), size, format_string)
-
-
-class EncryptedCtrRegion(Readable):
-    def __init__(self, source: Region, offset: int, end: int, key: bytes, ctr: int):
-        """
-        A region with a ctr encryption
-
-        Args:
-            source (Region): The source
-            offset (int): The start of the encryted data
-            end (int): The end of the encrypted data
-            key (bytes): The AES Ctr key in bytes
-            ctr (int): The ctr of the header
+            source (IReadable): Parent readable
+            start (int): Absolute start offset in parent
+            end (int): Absolute end offset in parent
+            key (bytes): AES CTR key
+            ctr (int): Initial CTR high value
         """
         super().__init__(source)
 
-        self.start = offset
-        self.offset = offset
-        self.end = end
+        self._start = start
+        self._end = end
+        self._pos = 0  # local cursor (relative to start)
 
         self.key = key
         self.ctr = ctr
@@ -313,55 +361,57 @@ class EncryptedCtrRegion(Readable):
     def align_up(self, value: int, align: int):
         return (value + (align - 1)) & ~(align - 1)
 
-    # im not gonna refactor this
+    def _absolute(self):
+        return self._start + self._pos
+
+    def tell(self):
+        return self._pos
+
+    def seek(self, offset):
+        if offset < 0 or self._start + offset > self._end:
+            raise ValueError("Out of bounds")
+        self._pos = offset
+
     def read(self, size):
-        if self.offset >= self.end:
+        absolute_offset = self._absolute()
+
+        if absolute_offset >= self._end:
             return b""
 
-        remaining = self.end - self.offset
+        remaining = self._end - absolute_offset
         size = min(size, remaining)
 
-        aligned_offset = self.align_down(self.offset, 0x10)
-        diff = self.offset - aligned_offset
+        aligned_offset = self.align_down(absolute_offset, 0x10)
+        diff = absolute_offset - aligned_offset
 
         size_raw = size + diff
         buf_size = self.align_up(size_raw, 0x10)
 
-        self.obj.seek(aligned_offset)
-        data = self.obj.read(buf_size)
-
+        # read encrypted data from parent without disturbing its cursor
+        data = self.source.peek_at(aligned_offset, buf_size)
         if not data:
             return b""
 
         sector_index = (aligned_offset >> 4) | (self.ctr << 64)
-        iv = Keyring.get_tweak(sector_index)
+        iv = Crypto.get_tweak(sector_index)
 
-        decryptor = Keyring.get_decryptor(self.key, modes.CTR(iv))
+        decryptor = Crypto.get_decryptor(self.key, modes.CTR(iv))
         decrypted = decryptor.update(data)
 
         start = diff
         end = min(start + size, len(decrypted))
-
         result = decrypted[start:end]
 
-        self.offset += len(result)
+        self._pos += len(result)
 
         return result
-
-    def calc_offset(self, offset):
-        _offset = self.start + offset
-        if _offset > self.end:
-            raise OutOfBounds()
-        return _offset
-
-    def seek(self, offset):
-        self.offset = self.calc_offset(offset)
 
     def read_at(self, offset, size):
         self.seek(offset)
         return self.read(size)
 
-    def read_to(self, offset, size, format_string):
-        self.seek(offset)
-        d = self.read(size)
-        return struct.unpack(format_string, d)[0]
+    def read_unpack_at(self, offset, size, format_string):
+        data = self.read_at(offset, size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_string, data)[0]
