@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 import struct
 
+from nxroms.crypto import Crypto, modes
+
 
 class IReadable(ABC):
     @abstractmethod
@@ -328,3 +330,86 @@ class File(Readable):
 class MemoryRegion(Readable):
     def __init__(self, source: bytes):
         super().__init__(BytesIO(source))
+
+
+class CTRReadable(Readable):
+    def __init__(self, source: IReadable, start: int, end: int, key: bytes, ctr: int):
+        """
+        A bounded CTR-encrypted readable region.
+
+        Args:
+            source (IReadable): Parent readable
+            start (int): Absolute start offset in parent
+            end (int): Absolute end offset in parent
+            key (bytes): AES CTR key
+            ctr (int): Initial CTR high value
+        """
+        super().__init__(source)
+
+        self._start = start
+        self._end = end
+        self._pos = 0  # local cursor (relative to start)
+
+        self.key = key
+        self.ctr = ctr
+
+    def align_down(self, value: int, align: int):
+        return value & ~(align - 1)
+
+    def align_up(self, value: int, align: int):
+        return (value + (align - 1)) & ~(align - 1)
+
+    def _absolute(self):
+        return self._start + self._pos
+
+    def tell(self):
+        return self._pos
+
+    def seek(self, offset):
+        if offset < 0 or self._start + offset > self._end:
+            raise ValueError("Out of bounds")
+        self._pos = offset
+
+    def read(self, size):
+        absolute_offset = self._absolute()
+
+        if absolute_offset >= self._end:
+            return b""
+
+        remaining = self._end - absolute_offset
+        size = min(size, remaining)
+
+        aligned_offset = self.align_down(absolute_offset, 0x10)
+        diff = absolute_offset - aligned_offset
+
+        size_raw = size + diff
+        buf_size = self.align_up(size_raw, 0x10)
+
+        # read encrypted data from parent without disturbing its cursor
+        data = self.source.peek_at(aligned_offset, buf_size)
+        if not data:
+            return b""
+
+        sector_index = (aligned_offset >> 4) | (self.ctr << 64)
+        iv = Crypto.get_tweak(sector_index)
+
+        decryptor = Crypto.get_decryptor(self.key, modes.CTR(iv))
+        decrypted = decryptor.update(data)
+
+        start = diff
+        end = min(start + size, len(decrypted))
+        result = decrypted[start:end]
+
+        self._pos += len(result)
+
+        return result
+
+    def read_at(self, offset, size):
+        self.seek(offset)
+        return self.read(size)
+
+    def read_unpack_at(self, offset, size, format_string):
+        data = self.read_at(offset, size)
+        if not data or len(data) < size:
+            return None
+        return struct.unpack(format_string, data)[0]

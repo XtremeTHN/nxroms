@@ -5,8 +5,6 @@ from ..binary.types import (
     UInt64,
     Bytes,
     Enumeration,
-    DataType,
-    DataTypeDescriptor,
 )
 from ..binary.repr import BinaryRepr
 from ..readers import MemoryRegion
@@ -130,3 +128,8 @@ class FsHeader(BinaryRepr, MemoryRegion):
             self.hash_data = HierarchicalIntegrity(hash_data)
         else:
             self.hash_data = HierarchicalSha256Data(hash_data)
+
+
+class InvalidFs(Exception):
+    def __init__(self, expected, given):
+        super().__init__(f"Invalid filesystem: expected {expected}, given {given}")

@@ -132,6 +132,7 @@ class NcaHeader(BinaryRepr, MemoryRegion):
             if entry.start_offset == 0 and entry.end_offset == 0:
                 continue
 
+            entry.index = x
             self.fs_entries.append(entry)
 
     def populate_fs_headers(self):
