@@ -1,3 +1,4 @@
+from nxroms.nacp import Nacp
 from nxroms.nca.header import ContentType
 from nxroms.nca.nca import Nca
 from nxroms.roms.nsp import Nsp
@@ -43,7 +44,10 @@ def find_control_nca(nsp: Nsp):
         print_nca_info(x)
 
         fs = x.open_romfs(x.header.fs_headers[0])
-        fs.get_file(fs.files[0]).dump()
+
+        n = Nacp(fs.get_file(fs.files[0]))
+        info("rom name:", n.titles[0].name)
+        info("rom version:", n.version)
 
         return
 

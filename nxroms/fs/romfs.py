@@ -36,7 +36,7 @@ class RomFSEntry(BinaryRepr, MemoryRegion):
     def __init__(self, source: bytes, padding: int):
         super().__init__(source)
 
-        self.skip(padding)
+        self.seek(0x8 + padding)
 
         self.hash = self.read_unpack(0x4, "<I")
         self.name_size = self.read_unpack(0x4, "<I")
