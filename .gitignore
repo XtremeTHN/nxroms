@@ -1,0 +1,10 @@
+*.nsp
+out*
+__pycache__
+.direnv
+*.bin
+.ruff_cache
+.venv
+result
+*.nacp
+*.xci

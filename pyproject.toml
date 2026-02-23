@@ -1,0 +1,31 @@
+[project]
+name = "nxroms"
+version = "0.0.1"
+
+authors = [
+    { name="Axel", email="nigthmaresans2@gmail.com" }
+]
+
+description = "python project to parse nx roms"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+dependencies = [
+    "cryptography"
+]
+
+[project.urls]
+Homepage = "https://github.com/XtremeTHN/nxroms"
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py310"
