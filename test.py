@@ -69,12 +69,10 @@ def print_xci(f):
     info(p.header)
     info(p.hfs_header)
 
-    s = p.open_partition("secure")
-
-    info("all pfs0 entries:")
-    for x in s.entry_table:
-        info(x)
-
+    s = p.open_nsp()
+    
+    find_control_nca(s)
+    
 
 FILE = File(sys.argv[1])
 
