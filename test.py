@@ -1,3 +1,5 @@
+import os
+
 from nxroms.nacp import Nacp
 from nxroms.nca.header import ContentType
 from nxroms.nca.nca import Nca
@@ -53,6 +55,16 @@ def find_control_nca(nsp: Nsp):
         return
 
 
+def print_all_ncas(rom):
+    info("getting ncas...")
+    files = rom.get_ncas()
+
+    print("-" * 50)
+    for x in files:
+        print_nca_info(x)
+        print("-" * 50)
+
+
 def print_nsp(f):
     p = Nsp(f)
 
@@ -66,16 +78,21 @@ def print_nsp(f):
 def print_xci(f):
     p = Xci(f)
 
-    info(p.header)
-    info(p.hfs_header)
-
     s = p.open_nsp()
-    
+
+    print_all_ncas(s)
+
     find_control_nca(s)
-    
+
 
 FILE = File(sys.argv[1])
 
-print_nsp(FILE)
+ext = os.path.splitext(sys.argv[1])[1]
+
+match ext:
+    case ".nsp":
+        print_nsp(FILE)
+    case ".xci":
+        print_xci(FILE)
 
 FILE.close()

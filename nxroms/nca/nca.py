@@ -47,6 +47,8 @@ class Nca(Readable):
                     entry.start_offset
                     + header.hash_data.info_level_hash.levels[-1].logical_offset
                 )
+
+            # not working
             case HashType.HIERARCHICAL_SHA256_HASH:
                 fs_offset = (
                     entry.start_offset + header.hash_data.layer_regions[1].offset
@@ -57,6 +59,9 @@ class Nca(Readable):
         return get_enc_region(fs_offset, entry.end_offset)
 
     def open_pfs(self, header: FsHeader):
+        """
+        currently not working
+        """
         if header.fs_type != FsType.PARTITION_FS:
             raise InvalidFs(FsType.PARTITION_FS, header.fs_type)
 
