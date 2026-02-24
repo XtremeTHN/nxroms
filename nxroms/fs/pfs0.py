@@ -69,10 +69,13 @@ class PFSHeader(BinaryRepr, Readable):
 
 
 class PFS0(Readable):
-    def __init__(self, source: IReadable):
+    def __init__(self, source: IReadable, header=None):
         super().__init__(source)
 
-        self.header = PFSHeader(self, b"PFS0", 0x18)
+        if header is None:
+            header = PFSHeader(self, b"PFS0", 0x18)
+        
+        self.header = header
 
     def get_item(self, index: int) -> PFSItem:
         return PFSItem(self, self.header.entry_table[index], self.header.raw_data_pos)
@@ -85,3 +88,4 @@ class PFS0(Readable):
             )
 
         return items
+
