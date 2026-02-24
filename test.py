@@ -6,8 +6,28 @@ from nxroms.nca.nca import Nca
 from nxroms.roms.nsp import Nsp
 from nxroms.roms.xci import Xci
 from nxroms.readers import File, MemoryRegion
-from nxroms.utils import color_ctx, info
 import sys
+
+from colorama import Fore, Style
+
+
+def color(string, color):
+    return color + str(string) + Fore.RESET
+
+
+def colored(*msg, color=Fore.GREEN, level=""):
+    print(color + Style.BRIGHT + str(level) + Style.RESET_ALL, *msg)
+
+
+def color_ctx(prefix):
+    def wrapper(*msg, color=Fore.GREEN, level=""):
+        colored(*msg, color=color, level=str(prefix) + str(level))
+
+    return wrapper
+
+
+def info(*msg):
+    colored(*msg, level="INFO")
 
 
 def print_nca_filesystems(nca: Nca):
